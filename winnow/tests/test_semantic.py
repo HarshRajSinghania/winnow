@@ -1,3 +1,6 @@
+import os
+import shutil
+
 import cv2
 import numpy as np
 
@@ -126,3 +129,31 @@ def test_the_same_pair_gets_the_same_answer_every_time(save):
     paths = templated_set(save)
     pair = (paths[2], paths[3], 0.9, keypoint_inliers(paths[2], paths[3]))
     assert set_aside_templates([pair], paths) == set_aside_templates([pair], list(reversed(paths)))
+
+
+def test_the_same_photos_in_another_folder_get_the_same_answer(save, tmp_path):
+    paths = templated_set(save)
+    pair = (paths[2], paths[3], 0.9, keypoint_inliers(paths[2], paths[3]))
+    first = set_aside_templates([pair], paths)
+
+    copied_root = tmp_path / "other_scan"
+    copied_root.mkdir()
+    copied = []
+    for path in paths:
+        dest = copied_root / os.path.basename(path)
+        shutil.copy(path, dest)
+        copied.append(str(dest))
+    by_name = {os.path.basename(path): path for path in copied}
+    copied_pair = (by_name[os.path.basename(pair[0])], by_name[os.path.basename(pair[1])],
+                   pair[2], pair[3])
+    second = set_aside_templates([copied_pair], copied)
+
+    def verdict(result):
+        kept, look_alikes = result
+        return (
+            [(item[2], item[3]) for item in kept],
+            [(item[2], item[3], item[4]) for item in look_alikes],
+        )
+
+    assert verdict(first) == verdict(second)
+    assert first != second  # paths themselves differ; only the decision must match
